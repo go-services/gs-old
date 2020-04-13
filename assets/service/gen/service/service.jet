@@ -1,0 +1,7 @@
+package service
+
+import (
+    service "{{ .Import }}"
+)
+
+type Middleware func(service.{{ .Interface }}) service.{{ .Interface }}

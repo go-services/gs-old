@@ -1,0 +1,27 @@
+{{if .Request.HasQuery }}
+    vars := mux.Vars(r)
+{{ end }}
+
+{{if !.Request.HasBody }}
+   err = {{httpRequestDecoder(.Request.Format)}}(r, &request)
+{{ end }}
+{{range param := .Request.Params }}
+    {{if param.ParamType == "QUERY"}}
+        request.{{param.Field}}{{if param.Parser && !param.Parser.NoError}}, err{{end}}= {{if param.Parser}}utils.{{param.Parser.Fn}}({{end}}r.URL.Query().Get("{{param.Name}}"){{if param.Parser}}){{end}}
+    {{ else if param.ParamType == "URL"}}
+        request.{{param.Field}}{{if param.Parser && !param.Parser.NoError}}, err{{end}}= {{if param.Parser}}utils.{{param.Parser.Fn}}({{end}}vars["{{param.Name}}"]{{if param.Parser}}){{end}}
+    {{ end }}
+    {{if param.Parser && !param.Parser.NoError}}
+        if err != nil {
+            return request, errors.HTTPBadRequest(err.Error())
+        }
+    {{ end }}
+{{ end }}
+{{if .Request.HasBody }}
+    {{range param := .Request.Params }}
+        {{if param.ParamType == "BODY"}}
+            err = {{httpRequestDecoder(param.Name)}}(r, {{if !param.Type.Pointer}}&{{end}}request.{{param.Field}})
+        {{ end }}
+    {{ end}}
+{{ end }}
+return request, err

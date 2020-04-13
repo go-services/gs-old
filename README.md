@@ -1,0 +1,1 @@
+# GS - The go services generator  WIP
