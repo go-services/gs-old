@@ -7,7 +7,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "gos",
+	Use:          "gs",
 	SilenceUsage: true,
 	Short:        "A tool to help you create microservices",
 	RunE: func(cmd *cobra.Command, args []string) error {

@@ -128,7 +128,7 @@ func NewWatcher() *Watcher {
 		watcher:  watcher.New(),
 	}
 }
-func Run() {
+func Run(port int) {
 	r := NewRunner()
 	w := NewWatcher()
 	// wait for build and run the binary with given params
@@ -142,5 +142,6 @@ func Run() {
 	// listen for further changes
 	go w.Watch()
 
+	go proxyServices(port)
 	r.Wait()
 }

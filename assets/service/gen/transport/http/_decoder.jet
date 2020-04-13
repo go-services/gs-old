@@ -1,4 +1,4 @@
-{{if .Request.HasQuery }}
+{{if .Request.HasUrl }}
     vars := mux.Vars(r)
 {{ end }}
 

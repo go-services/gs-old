@@ -9,6 +9,7 @@ require (
 	github.com/go-services/annotation v0.1.2
 	github.com/go-services/code v0.1.5
 	github.com/go-services/source v0.0.1-beta.1
+	github.com/gorilla/mux v1.7.4
 	github.com/ozgio/strutil v0.3.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/sirupsen/logrus v1.5.0

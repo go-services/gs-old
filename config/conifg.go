@@ -42,17 +42,17 @@ func Read() (*GSConfig, error) {
 
 	jsonData, err := fs.ReadFile(configFile)
 	if err != nil {
-		return nil, errors.New("not in a GOS project, you need to be in a GOS project to run this command")
+		return nil, errors.New("not in a GS project, you need to be in a GS project to run this command")
 	}
 
 	config, err := decode(jsonData)
 
 	if err != nil {
-		return nil, errors.New("GOS config malformed: " + err.Error())
+		return nil, errors.New("GS config malformed: " + err.Error())
 	}
 
 	if err := validate(config); err != nil {
-		return nil, errors.New("GOS config not valid: " + err.Error())
+		return nil, errors.New("GS config not valid: " + err.Error())
 	}
 	cfg = &config
 	return &config, nil

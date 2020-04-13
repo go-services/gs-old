@@ -81,7 +81,7 @@ type HttpRequest struct {
 	// the format the data is
 	Format requestFormat
 	// if the request has any query params
-	HasQuery bool
+	HasUrl bool
 	// if the request has body portion
 	HasBody bool
 	// all the extra params
@@ -182,7 +182,7 @@ func parseHttpRequestParams(req *code.Struct, request *HttpRequest) {
 				ParamType: URL,
 				Parser:    parser,
 			})
-
+			request.HasUrl = true
 		}
 		if gsQuery != "" {
 			if !isQueryTypeSupported(tp) {
@@ -203,7 +203,6 @@ func parseHttpRequestParams(req *code.Struct, request *HttpRequest) {
 				ParamType: QUERY,
 				Parser:    parser,
 			})
-			request.HasQuery = true
 		}
 		if gsBody != "" {
 			name, required := getParameter(gsBody)

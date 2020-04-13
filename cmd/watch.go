@@ -15,10 +15,12 @@ var watchCmd = &cobra.Command{
 		if b, _ := cmd.Flags().GetBool("debug"); b {
 			logrus.SetLevel(logrus.DebugLevel)
 		}
-		watch.Run()
+		p, _ := cmd.Flags().GetInt("port")
+		watch.Run(p)
 	},
 }
 
 func init() {
+	watchCmd.Flags().IntP("port", "p", 8888, "the port to run the proxy")
 	rootCmd.AddCommand(watchCmd)
 }
