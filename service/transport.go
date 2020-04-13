@@ -42,8 +42,14 @@ var typeFuncMap = map[string]*ParamParser{
 	"int": {
 		Fn: "StringToInt",
 	},
+	"int64": {
+		Fn: "StringToInt64",
+	},
 	"[]int": {
 		Fn: "StringToIntArray",
+	},
+	"[]int64": {
+		Fn: "StringToInt64Array",
 	},
 	"float64": {
 		Fn: "StringToFloat64",
@@ -268,31 +274,29 @@ func isQueryTypeSupported(tp string) bool {
 		"string",
 		"[]string",
 		"int",
+		"int64",
 		"[]int",
+		"[]int64",
 		"bool",
 		"float32",
 		"[]float32",
 		"float64",
 		"[]float64",
 	}
-	found := false
 	for _, supportedType := range supportedQueryTypes {
 		if supportedType == tp {
-			found = true
-			break
+			return true
 		}
 	}
-	return found
+	return false
 }
 
 func isUrlTypeSupported(tp string) bool {
-	var supportedUrlTypes = []string{"string", "int", "float32", "float64"}
-	found := false
+	var supportedUrlTypes = []string{"string", "int",  "int64", "float32", "float64"}
 	for _, supportedType := range supportedUrlTypes {
 		if supportedType == tp {
-			found = true
-			break
+			return true
 		}
 	}
-	return found
+	return false
 }

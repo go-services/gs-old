@@ -10,6 +10,12 @@ func StringToInt(s string) (int, error) {
 	return int(i64), err
 }
 
+
+func StringToInt64(s string) (int64, error) {
+	i64, err := strconv.ParseInt(strings.Trim(s, " "), 10, 64)
+	return i64, err
+}
+
 func StringToFloat64(s string) (f64 float64, err error) {
 	if s == "" {
 		return
@@ -78,11 +84,28 @@ func StringToIntArray(s string) (arrInt []int, err error) {
 	s = strings.Trim(s, " ")
 	arrStr := strings.Split(s, ",")
 	for _, s := range arrStr {
-		i64, err := strconv.ParseInt(strings.Trim(s, " "), 10, 32)
+		i64, err := StringToInt(s)
 		if err != nil {
 			return nil, err
 		}
 		arrInt = append(arrInt, int(i64))
+	}
+	return arrInt, nil
+}
+
+func StringToInt64Array(s string) (arrInt []int64, err error) {
+	if s == "" {
+		return
+	}
+	s = strings.Replace(s, ", ", ",", -1)
+	s = strings.Trim(s, " ")
+	arrStr := strings.Split(s, ",")
+	for _, s := range arrStr {
+		i64, err := StringToInt64(s)
+		if err != nil {
+			return nil, err
+		}
+		arrInt = append(arrInt, i64)
 	}
 	return arrInt, nil
 }
