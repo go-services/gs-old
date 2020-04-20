@@ -58,6 +58,12 @@ func WithHttpOptions (options ...http.ServerOption) withTransportOptions{
 		t.httpOptions = append(t.httpOptions, options...)
 	}
 }
+{{if .GRPCTransport}}
+func WithGrpcOptions (options ...grpc.ServerOption) withTransportOptions{
+	return func(t *transportOptions) {
+		t.grpcOptions = append(t.grpcOptions, options...)
+	}
+}{{end}}
 func MakeTransports(endpoints endpoint.Endpoints, options ...withTransportOptions) transport.Transports {
     opts := &transportOptions{}
    	for _, o := range options{
