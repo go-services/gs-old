@@ -1,0 +1,99 @@
+package grpc
+
+import (
+	"{{ .Import }}/gen/endpoint"
+	"context"
+	goKitGRPC "github.com/go-kit/kit/transport/grpc"
+)
+
+type GRPC interface {
+	Options([]goKitGRPC.ServerOption)
+}
+
+type Transport interface {
+	{{ range .GRPCTransport.GRPCEndpoint}}
+        {{.Name}}() {{.Name}}GRPC
+    {{end}}
+	Iterate(func(grpcTransport GRPC))
+	Server() {{ .Interface }}Server
+}
+
+type grpcTransport struct {
+{{ range .GRPCTransport.GRPCEndpoint}}
+    {{ lowerFirst(.Name) }} {{.Name}}GRPC
+{{end}}
+}
+
+var defaultErrorEncoder = func(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func SetDefaultErrorEncoder(encoder func(error) string) {
+	defaultErrorEncoder = encoder
+}
+
+var defaultGrpcAddress = "{{ .Config.Grpc.Url }}:{{ .Config.Grpc.Port }}"
+
+func SetHttpAddress(address string) {
+	defaultGrpcAddress = address
+}
+
+func Address() string {
+	return defaultGrpcAddress
+}
+
+func MakeGRPCTransport(endpoints endpoint.Endpoints, global ...goKitGRPC.ServerOption) Transport {
+    grpcTransport := &grpcTransport{}
+    {{ range .GRPCTransport.GRPCEndpoint}}
+        grpcTransport.{{ lowerFirst(.Name) }} = make{{.Name}}GRPCTransport(endpoints.{{.Name}}().Endpoint())
+        grpcTransport.{{ lowerFirst(.Name) }}.Options(global)
+    {{end}}
+    return grpcTransport
+}
+
+{{ range .GRPCTransport.GRPCEndpoint}}
+func (t *grpcTransport) {{.Name}}() {{.Name}}GRPC {
+	return t.{{ lowerFirst(.Name) }}
+}
+{{end}}
+
+func (t *grpcTransport) Iterate(iterFunc func(GRPC)) {
+	all := []GRPC{
+	{{ range .GRPCTransport.GRPCEndpoint}}
+	    t.{{ lowerFirst(.Name) }},
+    {{end}}
+	}
+
+	for _, m := range all {
+		iterFunc(m)
+	}
+}
+
+type grpcServer struct {
+	transport Transport
+}
+
+func (t *grpcTransport) Server() {{ .Interface }}Server {
+	return grpcServer{
+		transport: t,
+	}
+}
+
+{{ range .GRPCTransport.GRPCEndpoint }}
+func (g grpcServer) {{.Name}}(ctx context.Context, req *{{.RequestMessage.Name}}) (*{{.ResponseMessage.Name}}, error) {
+	_, rep, err := g.transport.{{.Name}}().Handler().ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return rep.(*{{.ResponseMessage.Name}}), nil
+}
+{{end}}
+
+func AddGrpcServerOption(grpcTransport Transport, opts ...goKitGRPC.ServerOption) {
+	grpcTransport.Iterate(func(method GRPC) {
+		method.Options(opts)
+	})
+}

@@ -106,7 +106,7 @@ type HttpTransport struct {
 	MethodRoutes   []HttpMethodRoute
 }
 
-func ParseHttpTransport(endpoint Endpoint) (*HttpTransport, error) {
+func parseHttpTransport(endpoint Endpoint) (*HttpTransport, error) {
 	httpAnnotations := findAnnotations("http", endpoint.Annotations)
 	if len(httpAnnotations) == 0 {
 		return nil, nil
@@ -292,7 +292,7 @@ func isQueryTypeSupported(tp string) bool {
 }
 
 func isUrlTypeSupported(tp string) bool {
-	var supportedUrlTypes = []string{"string", "int",  "int64", "float32", "float64"}
+	var supportedUrlTypes = []string{"string", "int", "int64", "float32", "float64"}
 	for _, supportedType := range supportedUrlTypes {
 		if supportedType == tp {
 			return true

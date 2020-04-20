@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package grpc;
+
+{{ range .GRPCTransport.GRPCEndpoint}}{{range .Messages}}{{.String()}}{{end}}{{end}}
+service {{.Interface}} {
+   {{ range .GRPCTransport.GRPCEndpoint}}rpc {{.Name}} ( {{.RequestMessage.Name}}) returns ( {{.ResponseMessage.Name}}) {}
+   {{end}}
+}

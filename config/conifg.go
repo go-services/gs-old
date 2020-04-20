@@ -15,14 +15,15 @@ import (
 
 var log = logrus.WithFields(logrus.Fields{"package": "config"})
 
-type HttpConfig struct {
+type AddressConfig struct {
 	Url  string `json:"url"`
 	Port int    `json:"port"`
 }
 
 type ServiceConfig struct {
-	Name string     `json:"name" valid:"alphanum,required"`
-	Http HttpConfig `json:"http"`
+	Name string        `json:"name" valid:"alphanum,required"`
+	Http AddressConfig `json:"http"`
+	Grpc AddressConfig `json:"grpc"`
 }
 
 type GSConfig struct {

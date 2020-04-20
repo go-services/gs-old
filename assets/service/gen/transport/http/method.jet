@@ -15,9 +15,9 @@ import (
 {{if .Endpoint.RequestImport}}{{.Endpoint.RequestImport.Alias}} "{{.Endpoint.RequestImport.Path}}" {{end}}
 {{if .Endpoint.ResponseImport}}{{.Endpoint.ResponseImport.Alias}} "{{.Endpoint.ResponseImport.Path}}" {{end}}
 )
-type {{ .Endpoint.Name }}DecodeRequestFunc func(context.Context{{if .Endpoint.Request}} , *goHttp.Request{{ end }}) ({{if .Endpoint.Request}} {{ reqParam := .Endpoint.Params[1] }} {{reqParam.Type}} , {{ end }}error)
+type {{ .Endpoint.Name }}DecodeRequestFunc func(context.Context{{if .Endpoint.Request}} , *goHttp.Request{{ end }}) ({{if .Endpoint.Request}} {{.Endpoint.Params[1].Type}} , {{ end }}error)
 
-type {{ .Endpoint.Name }}EncodeResponseFunc func(context.Context, goHttp.ResponseWriter{{if .Endpoint.Response}}, {{ respParam := .Endpoint.Results[0] }} {{ respParam.Type }} {{end}}) error
+type {{ .Endpoint.Name }}EncodeResponseFunc func(context.Context, goHttp.ResponseWriter{{if .Endpoint.Response}}, {{ .Endpoint.Results[0].Type }} {{end}}) error
 
 type {{ lowerFirst( .Endpoint.Name ) }} struct {
 	methodRoutes []MethodRoute

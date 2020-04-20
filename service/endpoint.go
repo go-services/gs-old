@@ -74,7 +74,7 @@ func parseEndpoint(method source.InterfaceMethod, serviceImport, serviceName str
 		return nil, err
 	}
 
-	ep.HttpTransport, err = ParseHttpTransport(*ep)
+	ep.HttpTransport, err = parseHttpTransport(*ep)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +168,17 @@ func fixMethodImport(tp code.Type, serviceImport, serviceName string) code.Type 
 	return tp
 }
 
+func fixStructFieldImport(tp code.Type, alias, structImport, structFile string) code.Type {
+	if tp.Import == nil && isExported(tp.Qualifier) {
+		tp.Import = code.NewImportWithFilePath(
+			alias,
+			structImport,
+			structFile,
+		)
+	}
+	return tp
+}
+
 func findStruct(tp code.Type) (*code.Struct, error) {
 	notFoundErr := errors.New(
 		"could not find structure, make sure that you are using a structure as request/response parameters",
@@ -203,7 +214,12 @@ func findStruct(tp code.Type) (*code.Struct, error) {
 		}
 		for _, structure := range fileSource.Structures() {
 			if structure.Name() == tp.Qualifier {
-				return structure.Code().(*code.Struct), nil
+				strc := structure.Code().(*code.Struct)
+				for inx, field := range strc.Fields {
+					field.Type = fixStructFieldImport(field.Type, tp.Import.Alias, tp.Import.Path, tp.Import.FilePath)
+					strc.Fields[inx] = field
+				}
+				return strc, nil
 			}
 		}
 	}

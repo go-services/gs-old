@@ -4,10 +4,12 @@ import (
     "{{ .Import }}/gen/endpoint"
     "{{ .Import }}/gen/transport"
     genService "{{ .Import }}/gen/service"
-    generatedTransport "{{ .Import }}/gen/transport/http"
+    genHttpTransport "{{ .Import }}/gen/transport/http"{{if .GRPCTransport}}
+    genGrpcTransport "{{ .Import }}/gen/transport/grpc"{{end}}
     service "{{ .Import }}"
     kitEndpoint "github.com/go-kit/kit/endpoint"
-    "github.com/go-kit/kit/transport/http"
+    "github.com/go-kit/kit/transport/http"{{if .GRPCTransport}}
+    "github.com/go-kit/kit/transport/grpc"{{end}}
     {{ range middleware := .Middlewares }}
      {{ if middleware.Import != "" }}
       {{ middleware.Alias }} "{{ middleware.Import }}"
@@ -16,13 +18,18 @@ import (
 )
 
 type serviceTransport struct {
-    http generatedTransport.Transport
+    http genHttpTransport.Transport{{if .GRPCTransport}}
+    grpc genGrpcTransport.Transport{{end}}
 }
 
-func (b *serviceTransport) HTTP() generatedTransport.Transport {
+func (b *serviceTransport) HTTP() genHttpTransport.Transport {
     return b.http
 }
-
+{{if .GRPCTransport}}
+func (b *serviceTransport) GRPC() genGrpcTransport.Transport {
+    return b.grpc
+}
+{{end}}
 func MakeService(svc service.{{ .Interface }}, mdw ...genService.Middleware) service.{{ .Interface }} {
    {{ if len(.Middlewares) }}
     mdw = append([]genService.Middleware{
@@ -39,10 +46,28 @@ func MakeService(svc service.{{ .Interface }}, mdw ...genService.Middleware) ser
     return svc
 }
 
-func MakeTransports(endpoints endpoint.Endpoints, httpOptions ...http.ServerOption) transport.Transports {
-    httpTransport := generatedTransport.MakeHttpTransport(endpoints, httpOptions...)
+type transportOptions struct {
+	httpOptions []http.ServerOption{{if .GRPCTransport}}
+	grpcOptions []grpc.ServerOption{{end}}
+}
+
+type withTransportOptions func(t *transportOptions)
+
+func WithHttpOptions (options ...http.ServerOption) withTransportOptions{
+	return func(t *transportOptions) {
+		t.httpOptions = append(t.httpOptions, options...)
+	}
+}
+func MakeTransports(endpoints endpoint.Endpoints, options ...withTransportOptions) transport.Transports {
+    opts := &transportOptions{}
+   	for _, o := range options{
+   		 o(opts)
+   	}
+   	httpTransport := genHttpTransport.MakeHttpTransport(endpoints, opts.httpOptions...){{if .GRPCTransport}}
+    grpcTransport := genGrpcTransport.MakeGRPCTransport(endpoints, opts.grpcOptions...){{end}}
     return &serviceTransport{
-        http: httpTransport,
+        http: httpTransport,{{if .GRPCTransport}}
+        grpc: grpcTransport,{{end}}
     }
 }
 

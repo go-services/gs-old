@@ -6,6 +6,8 @@ import (
 	"gs/config"
 	"gs/fs"
 	"gs/template"
+	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -30,8 +32,9 @@ type Service struct {
 	Import    string
 	Package   string
 
-	Endpoints   []Endpoint
-	Middlewares []Middleware
+	Endpoints     []Endpoint
+	GRPCTransport *GRPCTransport
+	Middlewares   []Middleware
 }
 
 // this is used from findStruct() if the file was already read we don't
@@ -70,7 +73,7 @@ func Generate(config config.ServiceConfig, module string) error {
 		service.Endpoints = append(service.Endpoints, *ep)
 	}
 	service.Middlewares = parseMiddleware(source.FindAnnotations("middleware", inf))
-
+	service.GRPCTransport = parseGRPCTransport(service)
 	return service.generateFiles()
 }
 
@@ -134,6 +137,13 @@ func (s *Service) generateFiles() error {
 	if err := s.generateEndpoints(); err != nil {
 		return err
 	}
+
+	if s.GRPCTransport != nil {
+		err := s.generateGrpcTransport()
+		if err != nil {
+			return err
+		}
+	}
 	if err := s.generateCmd(); err != nil {
 		return err
 	}
@@ -155,7 +165,59 @@ func (s Service) generateCmd() error {
 	}
 	return fs.WriteFile(s.GetPath("cmd", "main.go"), src)
 }
+func (s *Service) generateGrpcTransport() error {
+	src, err := template.CompileGoFromPath("service/gen/transport/grpc/grpc.jet", s)
+	if err != nil {
+		return err
+	}
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "grpc.go"), src)
+	if err != nil {
+		return err
+	}
 
+	src, err = template.CompileGoFromPath("service/gen/transport/grpc/grpc_encode_decode.jet", s)
+	if err != nil {
+		return err
+	}
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "grpc_encode_decode.go"), src)
+	if err != nil {
+		return err
+	}
+
+	src, err = template.CompileFromPath("service/gen/transport/grpc/proto.jet", s)
+	if err != nil {
+		return err
+	}
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "service.proto"), src)
+	if err != nil {
+		return err
+	}
+	for _, v := range s.GRPCTransport.GRPCEndpoint {
+		data := map[string]interface{}{
+			"Service":      s,
+			"GRPCEndpoint": v,
+		}
+		src, err := template.CompileGoFromPath("service/gen/transport/grpc/method.jet", data)
+		if err != nil {
+			return err
+		}
+		err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", template.ToLowerFirst(v.Name)+".go"), src)
+		if err != nil {
+			return err
+		}
+	}
+	currentPath, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("protoc", "service.proto", "--go_out=plugins=grpc:.")
+	cmd.Dir = path.Join(currentPath, s.Name(), "gen", "transport", "grpc")
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return nil
+}
 func (s *Service) GetPath(pth ...string) string {
 	return path.Join(append([]string{s.Name()}, pth...)...)
 }
@@ -249,16 +311,25 @@ func New(name string) error {
 		return err
 	}
 
-	port := 8000
+	httpPort := 8000
 	for _, v := range cfg.Services {
-		if v.Http.Port == port {
-			port += 1
+		if v.Http.Port == httpPort {
+			httpPort += 1
+		}
+	}
+	grpcPort := 2000
+	for _, v := range cfg.Services {
+		if v.Grpc.Port == grpcPort {
+			grpcPort += 1
 		}
 	}
 	cfg.Services = append(cfg.Services, config.ServiceConfig{
 		Name: serviceName,
-		Http: config.HttpConfig{
-			Port: port,
+		Http: config.AddressConfig{
+			Port: httpPort,
+		},
+		Grpc: config.AddressConfig{
+			Port: grpcPort,
 		},
 	})
 	return config.Update(*cfg)

@@ -109,3 +109,17 @@ func StringToInt64Array(s string) (arrInt []int64, err error) {
 	}
 	return arrInt, nil
 }
+
+func Int64ArrToIntArr(arr []int64) (ret []int) {
+	for _, v := range arr {
+		ret = append(ret, int(v))
+	}
+	return
+}
+
+func IntArrToInt64Arr(arr []int) (ret []int64) {
+	for _, v := range arr {
+		ret = append(ret, int64(v))
+	}
+	return
+}

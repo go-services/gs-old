@@ -14,7 +14,10 @@ import (
 	"runtime/debug"
 	"syscall"
 	"{{ .Import }}/gen/transport"
-	generatedTransport "{{ .Import }}/gen/transport/http"
+    genHttpTransport "{{ .Import }}/gen/transport/http"{{if .GRPCTransport}}
+    "google.golang.org/grpc"
+    genGrpcTransport "{{ .Import }}/gen/transport/grpc"{{end}}
+
 )
 
 func Run(transports transport.Transports, router *mux.Router, logger log.Logger) {
@@ -51,21 +54,36 @@ func Run(transports transport.Transports, router *mux.Router, logger log.Logger)
 	}
 }
 func setupTransports(g *run.Group, transports transport.Transports, router *mux.Router, logger log.Logger) error {
-	if transports.HTTP() != nil {
-		listener, err := net.Listen("tcp", generatedTransport.Address())
-		if err != nil {
-			return err
-		}
-		generatedTransport.SetupHttp(transports.HTTP(), router)
-		g.Add(func() error {
-			_ = logger.Log("transport", "HTTP", "addr", generatedTransport.Address())
-			return http.Serve(listener, router)
-		}, func(error) {
-			err := listener.Close()
-			if err != nil {
-				fmt.Printf("There where blocked Accept operations when closing listener : %v", err)
-			}
-		})
-	}
+    listener, err := net.Listen("tcp", genHttpTransport.Address())
+    if err != nil {
+        return err
+    }
+    genHttpTransport.SetupHttp(transports.HTTP(), router)
+    g.Add(func() error {
+        _ = logger.Log("transport", "HTTP", "addr", genHttpTransport.Address())
+        return http.Serve(listener, router)
+    }, func(error) {
+        err := listener.Close()
+        if err != nil {
+            fmt.Printf("There where blocked Accept operations when closing listener : %v", err)
+        }
+    })
+{{if .GRPCTransport}}
+    grpcListener, err := net.Listen("tcp", genGrpcTransport.Address())
+    if err != nil {
+         _ = logger.Log("transport", "gRPC", "during", "Listen", "err", err)
+        os.Exit(1)
+    }
+    g.Add(func() error {
+         _ = logger.Log("transport", "gRPC", "addr", genGrpcTransport.Address())
+        // we add the Go Kit gRPC Interceptor to our gRPC service as it is used by
+        // the here demonstrated zipkin tracing middleware.
+        baseServer := grpc.NewServer()
+        genGrpcTransport.Register{{.Interface}}Server(baseServer, transports.GRPC().Server())
+        return baseServer.Serve(grpcListener)
+    }, func(error) {
+        grpcListener.Close()
+    })
+{{end}}
 	return nil
 }
