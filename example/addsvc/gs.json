@@ -1,0 +1,16 @@
+{
+	"module": "addsvc",
+	"services": [
+		{
+			"name": "add",
+			"http": {
+				"url": "",
+				"port": 8002
+			},
+			"grpc": {
+				"url": "",
+				"port": 2000
+			}
+		}
+	]
+}
