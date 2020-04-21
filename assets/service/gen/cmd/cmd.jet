@@ -20,8 +20,26 @@ import (
 
 )
 
+
 func Run(transports transport.Transports, router *mux.Router, logger log.Logger) {
 	var g run.Group
+	{
+        // The debug listener mounts the http.DefaultServeMux, and serves up
+        // stuff like the Prometheus metrics route, the Go debug and profiling
+        // routes, and so on.
+        var debugAddr = "{{ .Config.Debug.Url }}:{{ .Config.Debug.Port }}"
+        debugListener, err := net.Listen("tcp", debugAddr)
+        if err != nil {
+            logger.Log("transport", "debug/HTTP", "during", "Listen", "err", err)
+            os.Exit(1)
+        }
+        g.Add(func() error {
+            logger.Log("transport", "debug/HTTP", "addr", debugAddr)
+            return http.Serve(debugListener, http.DefaultServeMux)
+        }, func(error) {
+            debugListener.Close()
+        })
+    }
 	{
 		err := setupTransports(&g, transports, router, logger)
 		if err != nil {

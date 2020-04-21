@@ -1,4 +1,4 @@
-module addsvc
+module stringsvc
 
 go 1.14
 
@@ -8,6 +8,5 @@ require (
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/schema v1.1.0
 	github.com/oklog/run v1.1.0
-	github.com/prometheus/client_golang v1.3.0
 	google.golang.org/grpc v1.27.0
 )

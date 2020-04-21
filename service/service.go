@@ -323,6 +323,12 @@ func New(name string) error {
 			grpcPort += 1
 		}
 	}
+	debugPort := 3000
+	for _, v := range cfg.Services {
+		if v.Debug.Port == debugPort {
+			debugPort += 1
+		}
+	}
 	cfg.Services = append(cfg.Services, config.ServiceConfig{
 		Name: serviceName,
 		Http: config.AddressConfig{
@@ -330,6 +336,9 @@ func New(name string) error {
 		},
 		Grpc: config.AddressConfig{
 			Port: grpcPort,
+		},
+		Debug: config.AddressConfig{
+			Port: debugPort,
 		},
 	})
 	return config.Update(*cfg)

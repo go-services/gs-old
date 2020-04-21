@@ -1,11 +1,11 @@
 {
-	"module": "addsvc",
+	"module": "stringsvc",
 	"services": [
 		{
-			"name": "add",
+			"name": "strings",
 			"http": {
 				"url": "",
-				"port": 8002
+				"port": 7000
 			},
 			"grpc": {
 				"url": "",

@@ -21,9 +21,10 @@ type AddressConfig struct {
 }
 
 type ServiceConfig struct {
-	Name string        `json:"name" valid:"alphanum,required"`
-	Http AddressConfig `json:"http"`
-	Grpc AddressConfig `json:"grpc"`
+	Name  string        `json:"name" valid:"alphanum,required"`
+	Http  AddressConfig `json:"http"`
+	Grpc  AddressConfig `json:"grpc"`
+	Debug AddressConfig `json:"debug"`
 }
 
 type GSConfig struct {
