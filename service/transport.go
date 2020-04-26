@@ -238,9 +238,15 @@ func parseHttpRequestParams(req *code.Struct, request *HttpRequest) {
 func parseMethodRoutes(httpAnnotation annotation.Annotation) (routes []HttpMethodRoute) {
 	keepTrailingSlash := httpAnnotation.Get("keepTrailingSlash").Bool()
 	var methodsPrepared []string
-	for _, method := range strings.Split(httpAnnotation.Get("methods").String(), ",") {
-		methodsPrepared = append(methodsPrepared, strings.ToUpper(strings.TrimSpace(method)))
-	}
+	// for now we won't support multiple methods for the same route, if I find that it is used it can be enabled.
+	//for _, method := range strings.Split(httpAnnotation.Get("method").String(), ",") {
+	//	methodsPrepared = append(methodsPrepared, strings.ToUpper(strings.TrimSpace(method)))
+	//}
+	methodsPrepared = append(
+		methodsPrepared,
+		strings.ToUpper(strings.TrimSpace(httpAnnotation.Get("method").String())),
+	)
+
 	route := httpAnnotation.Get("route").String()
 	if !strings.HasPrefix(route, "/") {
 		route = "/" + route

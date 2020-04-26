@@ -24,10 +24,10 @@ var ErrEmpty = errors.New("empty string")
 
 // @service()
 type Service interface {
-	// @http(methods="post", route="/uppercase")
+	// @http(method="post", route="/uppercase")
 	// @grpc()
 	Uppercase(context.Context, UppercaseRequest) (*UppercaseResponse, error)
-	// @http(methods="post", route="/count")
+	// @http(method="post", route="/count")
 	// @grpc()
 	Count(context.Context, CountRequest) (*CountResponse, error)
 }

@@ -44,10 +44,10 @@ type ConcatResponse struct {
 
 // @service()
 type Service interface {
-	// @http(methods="post", route="/sum")
+	// @http(method="post", route="/sum")
 	// @grpc()
 	Sum(context.Context, SumRequest) (*SumResponse, error)
-	// @http(methods="post", route="/concat")
+	// @http(method="post", route="/concat")
 	// @grpc()
 	Concat(context.Context, ConcatRequest) (*ConcatResponse, error)
 }

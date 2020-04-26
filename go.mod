@@ -7,8 +7,8 @@ require (
 	github.com/CloudyKit/jet v2.1.2+incompatible
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496
 	github.com/go-services/annotation v0.1.2
-	github.com/go-services/code v0.1.6-0.20200202213709-754ae62cd245
-	github.com/go-services/source v0.0.1-beta.1.0.20200419142323-4f5298aedeb0
+	github.com/go-services/code v0.1.6-0.20200425113720-837b9bcb2b2d
+	github.com/go-services/source v0.0.1-beta.1.0.20200425125149-8fa8c1041cb7
 	github.com/gorilla/mux v1.7.4
 	github.com/ozgio/strutil v0.3.0
 	github.com/radovskyb/watcher v1.0.7

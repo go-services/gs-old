@@ -34,7 +34,7 @@ type Service struct {
 
 	Endpoints     []Endpoint
 	GRPCTransport *GRPCTransport
-	Middlewares   []Middleware
+	Annotations   []annotation.Annotation
 }
 
 // this is used from findStruct() if the file was already read we don't
@@ -61,8 +61,9 @@ func Generate(config config.ServiceConfig, module string) error {
 		Interface: inf.Name(),
 		Config:    config,
 
-		Import:  fmt.Sprintf("%s/%s", module, config.Name),
-		Package: src.Package(),
+		Import:      fmt.Sprintf("%s/%s", module, config.Name),
+		Package:     src.Package(),
+		Annotations: inf.Annotations(),
 	}
 
 	for _, method := range filterMethods(inf.Methods()) {
@@ -72,7 +73,6 @@ func Generate(config config.ServiceConfig, module string) error {
 		}
 		service.Endpoints = append(service.Endpoints, *ep)
 	}
-	service.Middlewares = parseMiddleware(source.FindAnnotations("middleware", inf))
 	service.GRPCTransport = parseGRPCTransport(service)
 	return service.generateFiles()
 }
@@ -113,15 +113,17 @@ func (s *Service) generateFiles() error {
 		return err
 	}
 	files := map[string]string{
-		"service/gen/service.jet":             s.GetPath("gen", "gen.go"),
-		"service/gen/service/service.jet":     s.GetPath("gen", "service", "service.go"),
-		"service/gen/cmd/cmd.jet":             s.GetPath("gen", "cmd", "cmd.go"),
-		"service/gen/errors/errors.jet":       s.GetPath("gen", "errors", "errors.go"),
-		"service/gen/errors/http.jet":         s.GetPath("gen", "errors", "http.go"),
-		"service/gen/utils/utils.jet":         s.GetPath("gen", "utils", "utils.go"),
-		"service/gen/endpoint/endpoint.jet":   s.GetPath("gen", "endpoint", "endpoint.go"),
-		"service/gen/transport/transport.jet": s.GetPath("gen", "transport", "transport.go"),
-		"service/gen/transport/http/http.jet": s.GetPath("gen", "transport", "http", "http.go"),
+		"service/gen/service.jet":                s.GetPath("gen", "gen.go"),
+		"service/gen/options.jet":                s.GetPath("gen", "options.go"),
+		"service/gen/service/service.jet":        s.GetPath("gen", "service", "service.go"),
+		"service/gen/errors/errors.jet":          s.GetPath("gen", "errors", "errors.go"),
+		"service/gen/errors/http.jet":            s.GetPath("gen", "errors", "http.go"),
+		"service/gen/utils/utils.jet":            s.GetPath("gen", "utils", "utils.go"),
+		"service/gen/endpoint/endpoint.jet":      s.GetPath("gen", "endpoint", "endpoint$.go"),
+		"service/gen/endpoint/options.jet":       s.GetPath("gen", "endpoint", "options$.go"),
+		"service/gen/transport/transport.jet":    s.GetPath("gen", "transport", "transport.go"),
+		"service/gen/transport/http/http.jet":    s.GetPath("gen", "transport", "http", "http$.go"),
+		"service/gen/transport/http/options.jet": s.GetPath("gen", "transport", "http", "options$.go"),
 	}
 
 	for k, v := range files {
@@ -170,16 +172,25 @@ func (s *Service) generateGrpcTransport() error {
 	if err != nil {
 		return err
 	}
-	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "grpc.go"), src)
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "grpc$.go"), src)
 	if err != nil {
 		return err
 	}
 
-	src, err = template.CompileGoFromPath("service/gen/transport/grpc/grpc_encode_decode.jet", s)
+	src, err = template.CompileGoFromPath("service/gen/transport/grpc/encode_decode.jet", s)
 	if err != nil {
 		return err
 	}
-	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "grpc_encode_decode.go"), src)
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "encode_decode$.go"), src)
+	if err != nil {
+		return err
+	}
+
+	src, err = template.CompileGoFromPath("service/gen/transport/grpc/options.jet", s)
+	if err != nil {
+		return err
+	}
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "options$.go"), src)
 	if err != nil {
 		return err
 	}
@@ -188,7 +199,7 @@ func (s *Service) generateGrpcTransport() error {
 	if err != nil {
 		return err
 	}
-	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", "service.proto"), src)
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", s.Name()+".proto"), src)
 	if err != nil {
 		return err
 	}
@@ -211,7 +222,7 @@ func (s *Service) generateGrpcTransport() error {
 		return err
 	}
 
-	cmd := exec.Command("protoc", "service.proto", "--go_out=plugins=grpc:.")
+	cmd := exec.Command("protoc", s.Name()+".proto", "--go_out=plugins=grpc:.")
 	cmd.Dir = path.Join(currentPath, s.Name(), "gen", "transport", "grpc")
 	if err := cmd.Start(); err != nil {
 		return err
@@ -254,35 +265,6 @@ func filterMethods(methods []source.InterfaceMethod) (list []source.InterfaceMet
 		}
 	}
 	return list
-}
-
-func parseMiddleware(annotations []annotation.Annotation) (mdw []Middleware) {
-	packages := map[string]string{}
-	for _, v := range annotations {
-		middlewarePath := v.Get("path").String()
-		pathParts := strings.Split(middlewarePath, ".")
-		if len(pathParts) == 1 {
-			mdw = append(mdw, Middleware{
-				Alias:  "service",
-				Method: pathParts[0],
-			})
-			continue
-		}
-		middleware := Middleware{
-			Alias:  "",
-			Method: pathParts[len(pathParts)-1],
-		}
-		middlewarePackage := strings.Join(pathParts[:len(pathParts)-1], "/")
-		if v, ok := packages[middlewarePackage]; ok {
-			middleware.Alias = v
-		} else {
-			packages[middlewarePackage] = fmt.Sprintf("mdw%d", len(packages)+1)
-			middleware.Alias = packages[middlewarePackage]
-		}
-		middleware.Import = middlewarePackage
-		mdw = append(mdw, middleware)
-	}
-	return
 }
 
 func New(name string) error {

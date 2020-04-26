@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"unicode"
 	"unicode/utf8"
 
@@ -33,8 +34,6 @@ type Endpoint struct {
 	ResponseImport *code.Import
 
 	HttpTransport *HttpTransport
-
-	Middlewares []Middleware
 
 	Annotations []annotation.Annotation
 }
@@ -78,9 +77,6 @@ func parseEndpoint(method source.InterfaceMethod, serviceImport, serviceName str
 	if err != nil {
 		return nil, err
 	}
-
-	ep.Middlewares = parseMiddleware(source.FindAnnotations("middleware", &method))
-	// TODO add middleware parsing
 	return
 }
 
@@ -194,7 +190,7 @@ func findStruct(tp code.Type) (*code.Struct, error) {
 		return nil, notFoundErr
 	}
 	for _, file := range fls {
-		if file.IsDir() {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".go" {
 			continue
 		}
 		var fileSource *source.Source
@@ -217,6 +213,9 @@ func findStruct(tp code.Type) (*code.Struct, error) {
 				strc := structure.Code().(*code.Struct)
 				for inx, field := range strc.Fields {
 					field.Type = fixStructFieldImport(field.Type, tp.Import.Alias, tp.Import.Path, tp.Import.FilePath)
+					if field.Name == "" {
+						field.Name = field.Type.Qualifier
+					}
 					strc.Fields[inx] = field
 				}
 				return strc, nil

@@ -3,11 +3,15 @@ package http
 
 import (
 	"{{ .Import }}/gen/endpoint"
-	"github.com/gorilla/mux"
-	"github.com/gorilla/schema"
 	"context"
-	goHttp "net/http"
-	goKitHttp "github.com/go-kit/kit/transport/http"
+    "encoding/json"
+    "encoding/xml"
+    goHttp "net/http"
+
+    "github.com/gorilla/schema"
+
+    goKitHttp "github.com/go-kit/kit/transport/http"
+    "github.com/gorilla/mux"
 )
 
 type Method string
@@ -24,6 +28,8 @@ const (
 	CONNECT        = goHttp.MethodConnect
 )
 
+var decoder = schema.NewDecoder()
+
 type MethodRoute struct {
 	Name   string
 	Methods []Method
@@ -32,38 +38,76 @@ type MethodRoute struct {
 
 type HTTP interface {
 	MethodRoutes() []MethodRoute
-	Options([]goKitHttp.ServerOption)
 	Handler() goHttp.Handler
 }
 type Transport interface {
-	{{ range .Endpoints }}{{if .HttpTransport}}{{ .Name }}() {{ .Name }}HTTP{{end}}
-{{ end }}
-	Iterate(func(httpTransport HTTP))
+	Address() string
+	Router() *mux.Router
 }
 
 type httpTransport struct {
-	{{ range .Endpoints}}{{if .HttpTransport}}{{ lowerFirst( .Name ) }} {{ .Name }}HTTP{{end}}
-{{ end }}}
+    options_ options
+    {{ range .Endpoints}}{{if .HttpTransport}}{{ lowerFirst( .Name ) }} HTTP{{end}}
+    {{ end }}}
 
-var decoder = schema.NewDecoder()
-
-var defaultErrorEncoder = goKitHttp.DefaultErrorEncoder
-
-func SetDefaultErrorEncoder(encoder goKitHttp.ErrorEncoder) {
-	defaultErrorEncoder = encoder
+func setDefaultOptions(opts *options) {
+	if opts.address == "" {
+		opts.address = "{{ .Config.Http.Url }}:{{ .Config.Http.Port }}"
+	}
+	if opts.router == nil {
+		opts.router = mux.NewRouter()
+	}
+	if opts.errorEncoder == nil {
+		opts.errorEncoder = goKitHttp.DefaultErrorEncoder
+	}
+	if opts.jsonEncoder == nil {
+		opts.jsonEncoder = goKitHttp.EncodeJSONResponse
+	}
+	if opts.jsonDecoder == nil {
+		opts.jsonDecoder = DecodeJsonRequest
+	}
+	if opts.xmlEncoder == nil {
+		opts.xmlEncoder = EncodeXMLResponse
+	}
+	if opts.xmlDecoder == nil {
+		opts.xmlDecoder = DecodeXmlRequest
+	}
+	if opts.formDecoder == nil {
+		opts.formDecoder = DecodeFormRequest
+	}
 }
 
-var defaultResponseEncoder = defaultJSONEncoder
-
-var defaultJSONEncoder = goKitHttp.EncodeJSONResponse
-
-func SetDefaultJSONEncoder(encoder ResponseEncoder) {
-	defaultJSONEncoder = encoder
+func MakeHttpTransport(endpoints endpoint.Endpoints, opts ...Option) Transport {
+    httpOptions := &options{}
+        for _, o := range opts {
+            o(httpOptions)
+        }
+	setDefaultOptions(httpOptions)
+	return &httpTransport{
+        options_: *httpOptions,
+        {{ range .Endpoints }}{{if .HttpTransport}}{{ lowerFirst( .Name ) }}: make{{ .Name }}HttpTransport(endpoints.{{ .Name }}(), *httpOptions, httpOptions.{{ lowerFirst( .Name ) }}Options...),{{ end }}
+    {{ end }}}
 }
-var defaultXMLEncoder = EncodeXMLResponse
 
-func SetDefaultXMLEncoder(encoder ResponseEncoder) {
-	defaultXMLEncoder = encoder
+func (t httpTransport) Address() string {
+	return t.options_.address
+}
+
+func (t httpTransport) Router() *mux.Router {
+	all := []HTTP{
+		{{ range .Endpoints }}{{if .HttpTransport}}t.{{ lowerFirst( .Name ) }},{{end}}
+	{{ end }}}
+
+	for _, method := range all {
+        for _, route := range method.MethodRoutes() {
+            var methods []string
+            for _, method := range route.Methods {
+                methods = append(methods, string(method))
+            }
+            t.options_.router.Methods(methods...).Path(route.Route).Handler(method.Handler())
+        }
+    }
+    return t.options_.router
 }
 
 func EncodeXMLResponse(_ context.Context, w goHttp.ResponseWriter, response interface{}) error {
@@ -86,98 +130,24 @@ func EncodeXMLResponse(_ context.Context, w goHttp.ResponseWriter, response inte
 	return xml.NewEncoder(w).Encode(response)
 }
 
-type ResponseEncoder func(context.Context, goHttp.ResponseWriter, interface{}) error
-
-func SetDefaultResponseEncoder(encoder ResponseEncoder) {
-defaultResponseEncoder = encoder
-}
-
-type DecoderFunc func(*goHttp.Request, interface{}) error
-
-var defaultJSONDecoder = func(r *goHttp.Request, strc interface{}) error {
+func DecodeJsonRequest(r *goHttp.Request, strc interface{}) error {
 	if r.Body == goHttp.NoBody {
 		return nil
 	}
 	return json.NewDecoder(r.Body).Decode(strc)
 }
 
-func SetDefaultJSONDecoder(decoder DecoderFunc) {
-	defaultJSONDecoder = decoder
-}
-
-var defaultXMLDecoder = func(r *goHttp.Request, strc interface{}) error {
+func DecodeXmlRequest(r *goHttp.Request, strc interface{}) error {
 	if r.Body == goHttp.NoBody {
 		return nil
 	}
 	return xml.NewDecoder(r.Body).Decode(strc)
 }
 
-func SetDefaultXMLDecoder(decoder DecoderFunc) {
-	defaultXMLDecoder = decoder
-}
-
-var defaultFormDecoder = func(r *goHttp.Request, strc interface{}) error {
+func DecodeFormRequest(r *goHttp.Request, strc interface{}) error {
 	err := r.ParseForm()
 	if err != nil {
 		return err
 	}
 	return decoder.Decode(strc, r.PostForm)
-}
-
-func SetDefaultFormDecoder(decoder DecoderFunc) {
-	defaultXMLDecoder = decoder
-}
-
-var defaultHttpAddress = "{{ .Config.Http.Url }}:{{ .Config.Http.Port }}"
-
-func SetHttpAddress(address string) {
-	defaultHttpAddress = address
-}
-func Address() string {
-	return defaultHttpAddress
-}
-
-func MakeHttpTransport(endpoints endpoint.Endpoints, global ...goKitHttp.ServerOption) Transport {
-	httpTransport := makeRootHttpTransport(endpoints)
-	{{ range .Endpoints }}{{if .HttpTransport}}httpTransport.{{ .Name }}().Options(global){{end}}
-	{{ end }}return httpTransport
-}
-func makeRootHttpTransport(endpoints endpoint.Endpoints) Transport {
-	return &httpTransport{
-		{{ range .Endpoints}}{{if .HttpTransport}}{{ lowerFirst( .Name  ) }}:    make{{ .Name }}HttpTransport(endpoints.{{ .Name }}().Endpoint()),{{end}}
-	{{ end }}}
-}
-{{ range .Endpoints}}
-{{if .HttpTransport}}
-func (t *httpTransport) {{ .Name }}() {{ .Name }}HTTP {
-	return t.{{ lowerFirst( .Name ) }}
-}
-{{end}}
-{{ end }}
-func (t *httpTransport) Iterate(iterFunc func(HTTP)) {
-	all := []HTTP{
-		{{ range .Endpoints }}{{if .HttpTransport}}t.{{ lowerFirst( .Name ) }},{{end}}
-	{{ end }}}
-
-	for _, m := range all {
-		iterFunc(m)
-	}
-}
-
-func SetupHttp(httpTransport Transport, router *mux.Router) {
-	httpTransport.Iterate(func(method HTTP) {
-		for _, route := range method.MethodRoutes() {
-			var methods []string
-			for _, method := range route.Methods{
-				methods = append(methods, string(method))
-			}
-			router.Methods(methods...).Path(route.Route).Handler(method.Handler())
-		}
-	})
-}
-
-func AddHttpServerOption(httpTransport Transport, opts ...goKitHttp.ServerOption) {
-	httpTransport.Iterate(func(method HTTP) {
-		method.Options(opts)
-	})
 }

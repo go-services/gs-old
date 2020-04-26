@@ -5,32 +5,27 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	service "{{ .Service.Import }}"
 	"{{ .Service.Import }}/gen/endpoint/definitions"
-	{{ range middleware := .Endpoint.Middlewares }}
-     {{ if middleware.Import != "" }}
-      {{ middleware.Alias }} "{{ middleware.Import }}"
-     {{ end }}
-    {{ end }}
 )
 
-type {{ .Endpoint.Name }}Endpoint interface {
-	Middleware(...definitions.{{ .Endpoint.Name }}EndpointMiddleware)
-	Endpoint() endpoint.Endpoint
-	Set(definitions.{{ .Endpoint.Name }}EndpointFunc)
-}
 type {{ lowerFirst( .Endpoint.Name ) }} struct {
 	endpoint         definitions.{{ .Endpoint.Name }}EndpointFunc
 	middleware       []definitions.{{ .Endpoint.Name }}EndpointMiddleware
 	globalMiddleware []endpoint.Middleware
 }
 
-func make{{ .Endpoint.Name }}Endpoint(svc service.{{ .Service.Interface }}, global ...endpoint.Middleware) {{ .Endpoint.Name }}Endpoint {
-	return &{{ lowerFirst( .Endpoint.Name ) }}{
-		endpoint:         {{ lowerFirst (.Endpoint.Name) }}Endpoint(svc),
-		middleware:[]definitions.{{ .Endpoint.Name }}EndpointMiddleware{
-		{{ range middleware := .Endpoint.Middlewares }} {{if middleware.Alias == "" }} service{{else}}{{middleware.Alias}}{{end}}.{{middleware.Method}},{{end}}
-		},
-		globalMiddleware: global,
-	}
+type {{ .Endpoint.Name }}Option func(*{{ lowerFirst( .Endpoint.Name ) }})
+
+func make{{ .Endpoint.Name }}Endpoint(svc service.{{ .Service.Interface }}, global []endpoint.Middleware, {{ lowerFirst( .Endpoint.Name ) }}Options ...{{ .Endpoint.Name }}Option) endpoint.Endpoint {
+	ep := &{{ lowerFirst( .Endpoint.Name ) }}{
+        globalMiddleware: global,
+    }
+    for _, option := range {{ lowerFirst( .Endpoint.Name ) }}Options {
+        option(ep)
+    }
+    if ep.endpoint == nil {
+        ep.endpoint = {{ lowerFirst( .Endpoint.Name ) }}Endpoint(svc)
+    }
+    return ep.Endpoint()
 }
 
 func {{ lowerFirst( .Endpoint.Name ) }}Endpoint(b service.{{ .Service.Interface }}) definitions.{{ .Endpoint.Name }}EndpointFunc {
@@ -42,9 +37,6 @@ func {{ lowerFirst( .Endpoint.Name ) }}Endpoint(b service.{{ .Service.Interface 
 
 func (e *{{ lowerFirst( .Endpoint.Name ) }}) Endpoint() endpoint.Endpoint {
 	ep := e.endpoint
-	for left, right := 0, len(e.middleware)-1; left < right; left, right = left+1, right-1 {
-		 e.middleware[left],  e.middleware[right] =  e.middleware[right],  e.middleware[left]
-	}
 	for _, mdw := range e.middleware {
 		ep = mdw(ep)
 	}
@@ -52,19 +44,8 @@ func (e *{{ lowerFirst( .Endpoint.Name ) }}) Endpoint() endpoint.Endpoint {
         {{ if .Endpoint.Request }}req := request.({{ reqParam := .Endpoint.Params[1]}} {{ reqParam.Type }}) {{ end }}
         return ep(ctx{{ if  .Endpoint.Request }}, req{{ end }})
 	}
-	for left, right := 0, len(e.globalMiddleware)-1; left < right; left, right = left+1, right-1 {
-		 e.globalMiddleware[left],  e.globalMiddleware[right] =  e.globalMiddleware[right],  e.globalMiddleware[left]
-	}
 	for _, mdw := range e.globalMiddleware {
 		kitEp = mdw(kitEp)
 	}
 	return kitEp
-}
-
-func (e *{{ lowerFirst( .Endpoint.Name ) }}) Set(endpoint definitions.{{ .Endpoint.Name }}EndpointFunc) {
-	e.endpoint = endpoint
-}
-
-func (e *{{ lowerFirst( .Endpoint.Name ) }}) Middleware(mdw ...definitions.{{ .Endpoint.Name }}EndpointMiddleware) {
-	e.middleware = append(e.middleware, mdw...)
 }

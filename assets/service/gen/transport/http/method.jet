@@ -4,7 +4,6 @@ import (
 	"{{ .Service.Import }}/gen/endpoint"
 	"{{ .Service.Import }}/gen/endpoint/definitions"
 	"{{ .Service.Import }}/gen/utils"
-	"{{ .Service.Import }}/gen/errors"
 	"context"
 	"github.com/gorilla/mux"
 	"encoding/json"
@@ -21,28 +20,37 @@ type {{ .Endpoint.Name }}EncodeResponseFunc func(context.Context, goHttp.Respons
 
 type {{ lowerFirst( .Endpoint.Name ) }} struct {
 	methodRoutes []MethodRoute
-	options      []goKitHttp.ServerOption
-	decoder      {{ .Endpoint.Name }}DecodeRequestFunc
+	serverOptions      []goKitHttp.ServerOption
+    errorEncoder  goKitHttp.ErrorEncoder
+    decoder      {{ .Endpoint.Name }}DecodeRequestFunc
 	encoder      {{ .Endpoint.Name }}EncodeResponseFunc
 	endpoint     goKitEndpoint.Endpoint
 	handle       goHttp.Handler
 }
 
-type {{ .Endpoint.Name }}HTTP interface {
-	HTTP
-	AddMethodRoutes(...MethodRoute)
-	SetDecoder({{ .Endpoint.Name }}DecodeRequestFunc)
-	SetEncoder({{ .Endpoint.Name }}EncodeResponseFunc)
-	SetHandle(goHttp.Handler)
+type {{ .Endpoint.Name }}Option func(*{{ lowerFirst( .Endpoint.Name ) }})
+
+func set{{ .Endpoint.Name }}DefaultOptions(transport *{{ lowerFirst( .Endpoint.Name ) }}, httpOptions options) {
+	transport.methodRoutes = append({{ lowerFirst( .Endpoint.Name ) }}RouteMethods(), transport.methodRoutes...)
+	if transport.decoder == nil {
+		transport.decoder = make{{ .Endpoint.Name }}Decoder(httpOptions)
+	}
+	if transport.encoder == nil {
+		transport.encoder = make{{ .Endpoint.Name }}Encoder(httpOptions)
+	}
+	if transport.errorEncoder == nil {
+		transport.errorEncoder = httpOptions.errorEncoder
+	}
+	transport.serverOptions = append(httpOptions.serverOptions, transport.serverOptions...)
 }
 
-func make{{.Endpoint.Name}}HttpTransport(endpoint goKitEndpoint.Endpoint) {{.Endpoint.Name}}HTTP {
-	return &{{ lowerFirst( .Endpoint.Name ) }}{
-		methodRoutes: {{ lowerFirst( .Endpoint.Name ) }}RouteMethods(),
-		decoder:      {{ lowerFirst( .Endpoint.Name ) }}Decoder,
-		encoder:      {{ lowerFirst( .Endpoint.Name ) }}Encoder,
-		endpoint:     endpoint,
-	}
+func make{{.Endpoint.Name}}HttpTransport(endpoint goKitEndpoint.Endpoint, httpOptions options, options ...{{ .Endpoint.Name }}Option) HTTP {
+	transport := &{{ lowerFirst( .Endpoint.Name ) }}{endpoint: endpoint}
+    for _, option := range options {
+        option(transport)
+    }
+    set{{ .Endpoint.Name }}DefaultOptions(transport, httpOptions)
+    return transport
 }
 
 func {{ lowerFirst( .Endpoint.Name ) }}RouteMethods() []MethodRoute {
@@ -54,42 +62,26 @@ func {{ lowerFirst( .Endpoint.Name ) }}RouteMethods() []MethodRoute {
 		},{{end}}
     }
 }
-func {{ lowerFirst( .Endpoint.Name ) }}Decoder(_ context.Context{{if .Endpoint.Request}}, r *goHttp.Request{{ end }}) ({{if .Endpoint.Request}}request  {{ reqParam := .Endpoint.Params[1] }} {{ reqParam.Type }}, {{end}}err error) {
-	{{ if .Endpoint.Request }}
-	 {{ reqParam := .Endpoint.Params[1] }}
-        request =  {{ reqParam.Type }}{}
-        {{include "./_decoder.jet" .Endpoint.HttpTransport}}
-    {{ else }}
-        return err
-    {{ end }}
+func make{{ .Endpoint.Name }}Decoder(httpOptions options) {{ .Endpoint.Name }}DecodeRequestFunc {
+    return func (_ context.Context{{if .Endpoint.Request}}, r *goHttp.Request{{ end }}) ({{if .Endpoint.Request}}request  {{ reqParam := .Endpoint.Params[1] }} {{ reqParam.Type }}, {{end}}err error) {
+       	{{ if .Endpoint.Request }}
+       	 {{ reqParam := .Endpoint.Params[1] }}
+               request =  {{ reqParam.Type }}{}
+               {{include "./_decoder.jet" .Endpoint.HttpTransport}}
+           {{ else }}
+               return err
+           {{ end }}
+    }
 }
 
-func {{ lowerFirst( .Endpoint.Name ) }}Encoder(ctx context.Context, w goHttp.ResponseWriter{{if .Endpoint.Response}}, response  {{ respParam := .Endpoint.Results[0] }} {{ respParam.Type }} {{ end }}) error {
-	{{if .Endpoint.Response}}return {{ httpResponseEncoder( .Endpoint.HttpTransport.ResponseFormat ) }}(ctx, w, response){{else}}return nil{{ end }}
+func make{{ .Endpoint.Name }}Encoder(httpOptions options) {{ .Endpoint.Name }}EncodeResponseFunc {
+    return func (ctx context.Context, w goHttp.ResponseWriter{{if .Endpoint.Response}}, response  {{ respParam := .Endpoint.Results[0] }} {{ respParam.Type }} {{ end }}) error {
+        {{if .Endpoint.Response}}return httpOptions.{{ httpResponseEncoder( .Endpoint.HttpTransport.ResponseFormat ) }}(ctx, w, response){{else}}return nil{{ end }}
+    }
 }
 
 func (h *{{ lowerFirst( .Endpoint.Name ) }}) MethodRoutes() []MethodRoute {
 	return h.methodRoutes
-}
-
-func (h *{{ lowerFirst( .Endpoint.Name ) }}) Options(options []goKitHttp.ServerOption) {
-	h.options = append(h.options, options...)
-}
-
-func (h *{{ lowerFirst( .Endpoint.Name ) }}) AddMethodRoutes(methodRoutes ...MethodRoute) {
-	h.methodRoutes = append(h.methodRoutes, methodRoutes...)
-}
-
-func (h *{{ lowerFirst( .Endpoint.Name ) }}) SetDecoder(decoder {{.Endpoint.Name}}DecodeRequestFunc) {
-	h.decoder = decoder
-}
-
-func (h *{{ lowerFirst( .Endpoint.Name )  }}) SetEncoder(encoder {{.Endpoint.Name}}EncodeResponseFunc) {
-	h.encoder = encoder
-}
-
-func (h *{{ lowerFirst( .Endpoint.Name ) }}) SetHandle(handle goHttp.Handler) {
-	h.handle = handle
 }
 
 func (h *{{ lowerFirst( .Endpoint.Name ) }}) Handler() goHttp.Handler {
@@ -99,7 +91,7 @@ func (h *{{ lowerFirst( .Endpoint.Name ) }}) Handler() goHttp.Handler {
 	encoder := func(ctx context.Context, w goHttp.ResponseWriter, response interface{}) error {
 		epResponse := response.(definitions.{{.Endpoint.Name}}Response)
 		if epResponse.Err != nil {
-			defaultErrorEncoder(ctx, epResponse.Err, w)
+			h.errorEncoder(ctx, epResponse.Err, w)
 			return nil
 		}
         {{ if .Endpoint.Response}}res := epResponse.Response{{ end }}
@@ -116,6 +108,6 @@ func (h *{{ lowerFirst( .Endpoint.Name ) }}) Handler() goHttp.Handler {
 		h.endpoint,
 		decoder,
 		encoder,
-		h.options...,
+		h.serverOptions...,
 	)
 }

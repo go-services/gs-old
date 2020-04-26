@@ -28,6 +28,7 @@ type ProtoMessage struct {
 type ProtoMessageParam struct {
 	Repeat   bool
 	Name     string
+	GoName   string
 	Type     string
 	GoType   code.Type
 	Position int
@@ -67,17 +68,34 @@ func parseGRPCTransport(svc Service) *GRPCTransport {
 	seen := map[string]*ProtoMessage{}
 	for _, ep := range svc.Endpoints {
 		grpcAnnotations := findAnnotations("grpc", ep.Annotations)
+		globalGrpcAnnotation := findAnnotations("grpc", svc.Annotations)
 		if len(grpcAnnotations) == 0 {
 			continue
 		}
-		tp.GRPCEndpoint = append(tp.GRPCEndpoint, parseGRPCEndpoint(ep, seen))
+		errParam := "err"
+		respParam := "response"
+		if len(globalGrpcAnnotation) > 0 {
+			if param := globalGrpcAnnotation[0].Get("error_param").String(); param != "" {
+				errParam = param
+			}
+			if param := globalGrpcAnnotation[0].Get("response_param").String(); param != "" {
+				respParam = param
+			}
+		}
+		if param := grpcAnnotations[0].Get("error_param").String(); param != "" {
+			errParam = param
+		}
+		if param := grpcAnnotations[0].Get("response_param").String(); param != "" {
+			respParam = param
+		}
+		tp.GRPCEndpoint = append(tp.GRPCEndpoint, parseGRPCEndpoint(ep, errParam, respParam, seen))
 	}
 	if len(tp.GRPCEndpoint) == 0 {
 		return nil
 	}
 	return tp
 }
-func parseGRPCEndpoint(ep Endpoint, seen map[string]*ProtoMessage) GRPCEndpoint {
+func parseGRPCEndpoint(ep Endpoint, errParam, respParam string, seen map[string]*ProtoMessage) GRPCEndpoint {
 	grpcEp := GRPCEndpoint{
 		Name:     ep.Name,
 		Endpoint: ep,
@@ -103,7 +121,7 @@ func parseGRPCEndpoint(ep Endpoint, seen map[string]*ProtoMessage) GRPCEndpoint 
 		Params: []ProtoMessageParam{
 			{
 				Repeat:   false,
-				Name:     "Err",
+				Name:     errParam,
 				Type:     "string",
 				GoType:   code.NewType("string"),
 				Position: 1,
@@ -114,7 +132,7 @@ func parseGRPCEndpoint(ep Endpoint, seen map[string]*ProtoMessage) GRPCEndpoint 
 		message := generateMessage(&grpcEp.Messages, ep.Results[0].Type, ep.Response, seen)
 		responseMessage.Params = append(responseMessage.Params, ProtoMessageParam{
 			Repeat:   false,
-			Name:     "Response",
+			Name:     respParam,
 			Message:  &message,
 			GoType:   message.Type,
 			Type:     getMessageName(ep.Results[0].Type.Import, ep.Response.Name),
@@ -150,9 +168,14 @@ func generateMessage(messages *[]ProtoMessage, tp code.Type, structure *code.Str
 		if !isExported(field.Name) || tag == "-" {
 			continue
 		}
+		name := field.Name
+		if tag != "" {
+			name = tag
+		}
 		param := ProtoMessageParam{
 			Repeat:   field.Type.ArrayType,
-			Name:     field.Name,
+			Name:     name,
+			GoName:   field.Name,
 			GoType:   field.Type,
 			Position: len(message.Params) + 1,
 		}

@@ -3,7 +3,7 @@
 {{ end }}
 
 {{if !.Request.HasBody }}
-   err = {{httpRequestDecoder(.Request.Format)}}(r, &request)
+   err = httpOptions.{{httpRequestDecoder(.Request.Format)}}(r, &request)
 {{ end }}
 {{range param := .Request.Params }}
     {{if param.ParamType == "QUERY"}}
@@ -20,7 +20,7 @@
 {{if .Request.HasBody }}
     {{range param := .Request.Params }}
         {{if param.ParamType == "BODY"}}
-            err = {{httpRequestDecoder(param.Name)}}(r, {{if !param.Type.Pointer}}&{{end}}request.{{param.Field}})
+            err = httpOptions.{{httpRequestDecoder(param.Name)}}(r, {{if !param.Type.Pointer}}&{{end}}request.{{param.Field}})
         {{ end }}
     {{ end}}
 {{ end }}

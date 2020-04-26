@@ -12,22 +12,23 @@ import (
 var CustomFunctions = template.FuncMap{
 	"lowerFirst":          ToLowerFirst,
 	"title":               toTitle,
+	"camelCase":           camelCase,
 	"httpResponseEncoder": GetHttpResponseEncodeFunction,
 	"httpRequestDecoder":  GetHttpRequestDecoderFunction,
 }
 
 func GetHttpResponseEncodeFunction(tp string) string {
 	return map[string]string{
-		"JSON": "defaultJSONEncoder",
-		"XML":  "defaultXMLEncoder",
+		"JSON": "jsonEncoder",
+		"XML":  "xmlEncoder",
 	}[tp]
 }
 
 func GetHttpRequestDecoderFunction(tp string) string {
 	return map[string]string{
-		"JSON": "defaultJSONDecoder",
-		"XML":  "defaultXMLDecoder",
-		"FORM": "defaultFormDecoder",
+		"JSON": "jsonDecoder",
+		"XML":  "xmlDecoder",
+		"FORM": "formDecoder",
 	}[tp]
 }
 
@@ -46,4 +47,10 @@ func ToLowerFirst(text string) string {
 
 func toTitle(text string) string {
 	return strings.Title(strutil.ToCamelCase(text))
+}
+
+func camelCase(s string) string {
+	prep := strings.ReplaceAll(s, "_", " ")
+	prep = strings.ReplaceAll(prep, "-", " ")
+	return toTitle(strutil.ToCamelCase(prep))
 }
