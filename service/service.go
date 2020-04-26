@@ -15,8 +15,6 @@ import (
 
 	"github.com/ozgio/strutil"
 
-	"github.com/spf13/viper"
-
 	"github.com/go-services/source"
 )
 
@@ -27,6 +25,8 @@ type Middleware struct {
 }
 
 type Service struct {
+	Name string
+
 	Interface string
 	Config    config.ServiceConfig
 	Import    string
@@ -41,10 +41,10 @@ type Service struct {
 // want to spend all the time to read and parse it again
 var fileSourceCache map[string]*source.Source
 
-func Generate(config config.ServiceConfig, module string) error {
+func Generate(name string, config config.ServiceConfig, module string) error {
 	fileSourceCache = map[string]*source.Source{}
 
-	src, err := readServiceSource(config.Name)
+	src, err := readServiceSource(name)
 	if err != nil {
 		return err
 	}
@@ -58,16 +58,16 @@ func Generate(config config.ServiceConfig, module string) error {
 	}
 
 	service := Service{
-		Interface: inf.Name(),
-		Config:    config,
-
-		Import:      fmt.Sprintf("%s/%s", module, config.Name),
+		Interface:   inf.Name(),
+		Config:      config,
+		Name:        name,
+		Import:      fmt.Sprintf("%s/%s", module, name),
 		Package:     src.Package(),
 		Annotations: inf.Annotations(),
 	}
 
 	for _, method := range filterMethods(inf.Methods()) {
-		ep, err := parseEndpoint(method, service.Import, service.Name())
+		ep, err := parseEndpoint(method, service.Import, service.Name)
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func (s *Service) generateGrpcTransport() error {
 	if err != nil {
 		return err
 	}
-	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", s.Name()+".proto"), src)
+	err = fs.WriteFile(s.GetPath("gen", "transport", "grpc", s.Name+".proto"), src)
 	if err != nil {
 		return err
 	}
@@ -222,18 +222,15 @@ func (s *Service) generateGrpcTransport() error {
 		return err
 	}
 
-	cmd := exec.Command("protoc", s.Name()+".proto", "--go_out=plugins=grpc:.")
-	cmd.Dir = path.Join(currentPath, s.Name(), "gen", "transport", "grpc")
+	cmd := exec.Command("protoc", s.Name+".proto", "--go_out=plugins=grpc:.")
+	cmd.Dir = path.Join(currentPath, s.Name, "gen", "transport", "grpc")
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	return nil
 }
 func (s *Service) GetPath(pth ...string) string {
-	return path.Join(append([]string{s.Name()}, pth...)...)
-}
-func (s *Service) Name() string {
-	return s.Config.Name
+	return path.Join(append([]string{s.Name}, pth...)...)
 }
 
 func readServiceSource(name string) (*source.Source, error) {
@@ -250,7 +247,7 @@ func readServiceSource(name string) (*source.Source, error) {
 
 func findServiceInterface(src *source.Source) *source.Interface {
 	for _, inf := range src.Interfaces() {
-		annotations := source.FindAnnotations(viper.GetString(config.ServiceAnnotation), &inf)
+		annotations := source.FindAnnotations("service", &inf)
 		if len(annotations) > 0 {
 			return &inf
 		}
@@ -267,7 +264,7 @@ func filterMethods(methods []source.InterfaceMethod) (list []source.InterfaceMet
 	return list
 }
 
-func New(name string) error {
+func GenerateNew(name string) error {
 	cfg, err := config.Read()
 	if err != nil {
 		return err
@@ -311,8 +308,7 @@ func New(name string) error {
 			debugPort += 1
 		}
 	}
-	cfg.Services = append(cfg.Services, config.ServiceConfig{
-		Name: serviceName,
+	cfg.Services[serviceName] = config.ServiceConfig{
 		Http: config.AddressConfig{
 			Port: httpPort,
 		},
@@ -322,6 +318,6 @@ func New(name string) error {
 		Debug: config.AddressConfig{
 			Port: debugPort,
 		},
-	})
-	return config.Update(*cfg)
+	}
+	return config.Write(*cfg)
 }

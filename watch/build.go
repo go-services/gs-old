@@ -32,21 +32,21 @@ func (b *Builder) Build() {
 	go b.registerSignalHandler()
 	go func() {
 		// used for triggering the first build
-		for _, svc := range b.watcher.gsConfig.Services {
-			b.watcher.update <- svc
+		for name := range b.watcher.gsConfig.Services {
+			b.watcher.update <- name
 		}
 	}()
 
-	for svc := range b.watcher.Wait() {
-		err := service.Generate(svc, b.watcher.gsConfig.Module)
+	for serviceName := range b.watcher.Wait() {
+		err := service.Generate(serviceName, b.watcher.gsConfig.Services[serviceName], b.watcher.gsConfig.Module)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		pkg := path.Join(b.watcher.gsConfig.Module, svc.Name, "cmd")
-		fileName := generateBinaryName(path.Join(svc.Name, "cmd"))
+		pkg := path.Join(b.watcher.gsConfig.Module, serviceName, "cmd")
+		fileName := generateBinaryName(path.Join(serviceName, "cmd"))
 
-		log.WithField("service", svc.Name).Info("Building service")
+		log.WithField("service", serviceName).Info("Building service")
 
 		// build package
 		cmd, err := runCommand("go", "build", "-i", "-o", fileName, pkg)
@@ -63,7 +63,7 @@ func (b *Builder) Build() {
 
 			continue
 		}
-		log.WithField("service", svc.Name).Info("Running service")
+		log.WithField("service", serviceName).Info("Running service")
 		// and start the new process
 		b.runner.restart(fileName)
 	}

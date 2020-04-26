@@ -5,12 +5,13 @@ import (
 	"errors"
 	"strings"
 )
+
 type UppercaseRequest struct {
 	S string `json:"s"`
 }
 
 type UppercaseResponse struct {
-	V   string `json:"v"`
+	V string `json:"v"`
 }
 type CountRequest struct {
 	S string `json:"s"`
@@ -34,7 +35,6 @@ type Service interface {
 
 type stringsService struct{}
 
-
 func New() Service {
 	return &stringsService{}
 }
@@ -43,9 +43,9 @@ func (s stringsService) Uppercase(_ context.Context, req UppercaseRequest) (*Upp
 	if req.S == "" {
 		return nil, ErrEmpty
 	}
-	return &UppercaseResponse{V:strings.ToUpper(req.S)}, nil
+	return &UppercaseResponse{V: strings.ToUpper(req.S)}, nil
 }
 
 func (s stringsService) Count(_ context.Context, req CountRequest) (*CountResponse, error) {
-	return &CountResponse{V:len(req.S)},nil
+	return &CountResponse{V: len(req.S)}, nil
 }

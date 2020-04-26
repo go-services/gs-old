@@ -2,7 +2,6 @@ package watch
 
 import (
 	"gs/config"
-	"gs/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,8 +9,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
-	"github.com/spf13/viper"
 
 	"github.com/radovskyb/watcher"
 )
@@ -24,7 +21,7 @@ type Watcher struct {
 	gsConfig *config.GSConfig
 	watcher  *watcher.Watcher
 	// when a file gets changed a message is sent to the update channel
-	update chan config.ServiceConfig
+	update chan string
 }
 
 func (w *Watcher) handleUpdate(event watcher.Event) {
@@ -36,19 +33,33 @@ func (w *Watcher) handleUpdate(event watcher.Event) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	for _, svc := range w.gsConfig.Services {
-		if strings.HasPrefix(pth, getPath(svc.Name)) {
-			w.update <- svc
+	mustWatch := false
+	ext := filepath.Ext(pth)
+	for _, v := range append([]string{".go"}, w.gsConfig.WatchExtensions...) {
+		if v == ext {
+			mustWatch = true
 		}
 	}
-	if pth == viper.GetString(config.GSConfigFileName) {
-		w.gsConfig, err = config.ReRead()
-		if err != nil {
+	if pth == "gs.toml" {
+		mustWatch = true
+	}
+	if !mustWatch {
+		return
+	}
+	for name := range w.gsConfig.Services {
+		if strings.HasPrefix(pth, name) {
+			w.update <- name
 			return
 		}
-		for _, svc := range w.gsConfig.Services {
-			w.update <- svc
-		}
+	}
+
+	// something outside of any service changed reload all of them
+	w.gsConfig, err = config.Read()
+	if err != nil {
+		return
+	}
+	for name := range w.gsConfig.Services {
+		w.update <- name
 	}
 }
 
@@ -77,21 +88,20 @@ func (w *Watcher) Watch() {
 
 	go w.watchLoop()
 
-	if err := w.watcher.Add(getPath(viper.GetString(config.GSConfigFileName))); err != nil {
+	if err := w.watcher.AddRecursive("."); err != nil {
 		log.Fatalln(err)
 	}
 
 	if err := w.watcher.Ignore(".git"); err != nil {
 		log.Fatalln(err)
 	}
-	for _, service := range w.gsConfig.Services {
-		if err := w.watcher.AddRecursive(getPath(service.Name)); err != nil {
-			log.Fatalln(err)
-		}
-		if err := w.watcher.Ignore(getPath(path.Join(service.Name, "gen"))); err != nil {
+
+	for name := range w.gsConfig.Services {
+		if err := w.watcher.Ignore(path.Join(name, "gen")); err != nil {
 			log.Fatalln(err)
 		}
 	}
+
 	go func() {
 		time.Sleep(1 * time.Second)
 		runner.Run()
@@ -102,7 +112,7 @@ func (w *Watcher) Watch() {
 }
 
 // Wait waits for the latest messages
-func (w *Watcher) Wait() <-chan config.ServiceConfig {
+func (w *Watcher) Wait() <-chan string {
 	return w.update
 }
 
@@ -111,19 +121,13 @@ func (w *Watcher) Close() {
 	close(w.update)
 }
 
-func getPath(pth string) string {
-	if tp := viper.GetString(fs.DebugKey); tp != "" {
-		return path.Join(tp, pth)
-	}
-	return pth
-}
 func NewWatcher() *Watcher {
 	cfg, err := config.Read()
 	if err != nil {
 		panic(err)
 	}
 	return &Watcher{
-		update:   make(chan config.ServiceConfig),
+		update:   make(chan string),
 		gsConfig: cfg,
 		watcher:  watcher.New(),
 	}
@@ -142,6 +146,5 @@ func Run(port int) {
 	// listen for further changes
 	go w.Watch()
 
-	go proxyServices(port)
 	r.Wait()
 }

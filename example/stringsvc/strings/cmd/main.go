@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	gen.New(service.New(), gen.ServiceMode(gen.DEBUG)).Run()
+	gen.New(service.New()).Run()
 }

@@ -107,6 +107,9 @@ func (t httpTransport) Router() *mux.Router {
             t.options_.router.Methods(methods...).Path(route.Route).Handler(method.Handler())
         }
     }
+	if t.options_.notFoundHandler != nil {
+		t.options_.router.NotFoundHandler = t.options_.notFoundHandler
+	}
     return t.options_.router
 }
 

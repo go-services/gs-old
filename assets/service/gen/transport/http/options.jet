@@ -17,6 +17,7 @@ type DecoderFunc func(*goHttp.Request, interface{}) error
 type options struct {
 	address string
 	router  *mux.Router
+	notFoundHandler goHttp.HandlerFunc
 
 	// Global Options
 	serverOptions []goKitHttp.ServerOption
@@ -85,6 +86,12 @@ func FormDecoder(formDecoder DecoderFunc) Option {
 func ServerOptions(opts ...goKitHttp.ServerOption) Option {
 	return func(o *options) {
 		o.serverOptions = append(o.serverOptions, opts...)
+	}
+}
+
+func NotFoundHandler(notFoundHandler goHttp.HandlerFunc) Option {
+	return func(o *options) {
+		o.notFoundHandler = notFoundHandler
 	}
 }
 

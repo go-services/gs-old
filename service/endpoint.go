@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"gs/config"
-	"gs/fs"
 	"io/ioutil"
 	"os"
 	"path"
@@ -13,10 +12,8 @@ import (
 
 	"github.com/go-services/annotation"
 
-	"github.com/go-services/source"
-	"github.com/spf13/viper"
-
 	"github.com/go-services/code"
+	"github.com/go-services/source"
 )
 
 type Endpoint struct {
@@ -151,9 +148,6 @@ func fixMethodImport(tp code.Type, serviceImport, serviceName string) code.Type 
 		currentPath, err := os.Getwd()
 		if err != nil {
 			panic(err)
-		}
-		if viper.GetString(fs.DebugKey) != "" {
-			currentPath = path.Join(currentPath, viper.GetString(fs.DebugKey))
 		}
 		tp.Import = code.NewImportWithFilePath(
 			"service",

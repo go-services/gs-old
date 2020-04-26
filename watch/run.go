@@ -1,13 +1,9 @@
 package watch
 
 import (
-	"gs/fs"
 	"io"
 	"os"
 	"os/exec"
-	"path"
-
-	"github.com/spf13/viper"
 )
 
 // Runner listens for the change events and depending on that kills
@@ -79,14 +75,7 @@ func (r *Runner) Wait() {
 // runCommand runs the command with given name and arguments. It copies the
 // logs to standard output
 func runCommand(name string, args ...string) (*exec.Cmd, error) {
-	currentPath, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
 	cmd := exec.Command(name, args...)
-	if tp := viper.GetString(fs.DebugKey); tp != "" {
-		cmd.Dir = path.Join(currentPath, tp)
-	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err

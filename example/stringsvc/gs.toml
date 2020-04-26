@@ -1,0 +1,16 @@
+
+[services]
+
+  [services.strings]
+
+    [services.strings.debug]
+      port = 3000
+      url = ""
+
+    [services.strings.grpc]
+      port = 2000
+      url = ""
+
+    [services.strings.http]
+      port = 8000
+      url = ""

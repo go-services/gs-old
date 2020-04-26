@@ -11,6 +11,7 @@ require (
 	github.com/go-services/source v0.0.1-beta.1.0.20200425125149-8fa8c1041cb7
 	github.com/gorilla/mux v1.7.4
 	github.com/ozgio/strutil v0.3.0
+	github.com/pelletier/go-toml v1.7.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/sirupsen/logrus v1.5.0
 	github.com/spf13/afero v1.2.2

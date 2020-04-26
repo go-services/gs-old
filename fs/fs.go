@@ -7,28 +7,22 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 )
-
-const TestKey = "gs_test_fs"
-const DebugKey = "gs_debug_folder"
 
 var log = logrus.WithFields(logrus.Fields{
 	"package": "fs",
 })
 
 var fs afero.Fs
+var testFs afero.Fs
 
 func appFs() afero.Fs {
-	if testFs := viper.Get(TestKey); testFs != nil {
+	if testFs != nil {
 		log.Debug("Using test filesystem")
-		return testFs.(afero.Fs)
+		return testFs
 	}
 	if fs == nil {
 		fs = afero.NewOsFs()
-		if debugFolder := viper.GetString(DebugKey); debugFolder != "" {
-			fs = afero.NewBasePathFs(fs, debugFolder)
-		}
 	}
 	return fs
 }

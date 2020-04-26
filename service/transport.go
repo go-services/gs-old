@@ -69,9 +69,9 @@ var typeFuncMap = map[string]*ParamParser{
 }
 
 type HttpRequestParam struct {
-	// this is the field name
+	// this is the field Name
 	Field string
-	// this is the name given in the url param or query param
+	// this is the Name given in the url param or query param
 	Name string
 	// this is the field type
 	Type code.Type
@@ -252,7 +252,7 @@ func parseMethodRoutes(httpAnnotation annotation.Annotation) (routes []HttpMetho
 		route = "/" + route
 	}
 	methodRoute := HttpMethodRoute{
-		Name:    httpAnnotation.Get("name").String(),
+		Name:    httpAnnotation.Get("Name").String(),
 		Methods: methodsPrepared,
 		Route:   route,
 	}

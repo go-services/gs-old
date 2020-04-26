@@ -2,9 +2,10 @@ package service
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/go-services/code"
 	"github.com/ozgio/strutil"
-	"strings"
 )
 
 var goToProtoTypeMap = map[string]string{
