@@ -1,0 +1,272 @@
+package http
+
+import (
+	"context"
+	"encoding/json"
+	"encoding/xml"
+	"github.com/go-chi/chi/v5"
+	goKitHttp "github.com/go-kit/kit/transport/http"
+	"github.com/gorilla/schema"
+
+	goHttp "net/http"
+)
+
+type Method string
+
+const (
+	GET     Method = goHttp.MethodGet
+	PUT            = goHttp.MethodPut
+	POST           = goHttp.MethodPost
+	HEAD           = goHttp.MethodHead
+	PATCH          = goHttp.MethodPatch
+	DELETE         = goHttp.MethodDelete
+	OPTIONS        = goHttp.MethodOptions
+	TRACE          = goHttp.MethodTrace
+	CONNECT        = goHttp.MethodConnect
+)
+
+type MethodRoute struct {
+	Name    string
+	Methods []Method
+	Route   string
+}
+
+type EncoderFunc func(context.Context, goHttp.ResponseWriter, interface{}) error
+type DecoderFunc func(*goHttp.Request, interface{}) error
+
+type options struct {
+	address         string
+	router          *chi.Mux
+	notFoundHandler goHttp.HandlerFunc
+
+	// Global Options
+	serverOptions []goKitHttp.ServerOption
+	errorEncoder  goKitHttp.ErrorEncoder
+	jsonEncoder   EncoderFunc
+	jsonDecoder   DecoderFunc
+	xmlEncoder    EncoderFunc
+	xmlDecoder    DecoderFunc
+	formDecoder   DecoderFunc
+}
+
+type Options interface {
+	ServerOptions() []goKitHttp.ServerOption
+	ErrorEncoder() goKitHttp.ErrorEncoder
+	JsonEncoder() EncoderFunc
+	JsonDecoder() DecoderFunc
+	XmlEncoder() EncoderFunc
+	XmlDecoder() DecoderFunc
+	FormDecoder() DecoderFunc
+}
+
+func (o options) ServerOptions() []goKitHttp.ServerOption {
+	return o.serverOptions
+}
+
+func (o options) ErrorEncoder() goKitHttp.ErrorEncoder {
+	return o.errorEncoder
+}
+
+func (o options) JsonEncoder() EncoderFunc {
+	return o.jsonEncoder
+}
+
+func (o options) JsonDecoder() DecoderFunc {
+	return o.jsonDecoder
+}
+
+func (o options) XmlEncoder() EncoderFunc {
+	return o.xmlEncoder
+}
+
+func (o options) XmlDecoder() DecoderFunc {
+	return o.xmlDecoder
+}
+
+func (o options) FormDecoder() DecoderFunc {
+	return o.formDecoder
+}
+
+type Option func(*options)
+
+type httpTransport struct {
+	options_  options
+	endpoints []HTTP
+}
+
+type HTTP interface {
+	MethodRoutes() []MethodRoute
+	Handler() goHttp.Handler
+}
+type Transport interface {
+	Address() string
+	Router() *chi.Mux
+}
+
+func NewHttpTransport(makeEndpoints []func(Options) HTTP, opts ...Option) Transport {
+	httpOptions := &options{}
+	for _, o := range opts {
+		o(httpOptions)
+	}
+	setDefaultOptions(httpOptions)
+	endpoints := make([]HTTP, len(makeEndpoints))
+	for i, makeEndpoint := range makeEndpoints {
+		endpoints[i] = makeEndpoint(httpOptions)
+	}
+	return &httpTransport{
+		options_:  *httpOptions,
+		endpoints: endpoints,
+	}
+}
+
+func (t httpTransport) Address() string {
+	return t.options_.address
+}
+
+func (t httpTransport) Router() *chi.Mux {
+	for _, endpoint := range t.endpoints {
+		for _, route := range endpoint.MethodRoutes() {
+			var methods []string
+			for _, method := range route.Methods {
+				methods = append(methods, string(method))
+			}
+			for _, method := range route.Methods {
+				t.options_.router.Method(string(method), route.Route, endpoint.Handler())
+			}
+		}
+	}
+	if t.options_.notFoundHandler != nil {
+		t.options_.router.NotFound(t.options_.notFoundHandler)
+	}
+	return t.options_.router
+}
+
+func setDefaultOptions(opts *options) {
+	if opts.address == "" {
+		opts.address = ":8000"
+	}
+	if opts.router == nil {
+		opts.router = chi.NewRouter()
+	}
+	if opts.errorEncoder == nil {
+		opts.errorEncoder = goKitHttp.DefaultErrorEncoder
+	}
+	if opts.jsonEncoder == nil {
+		opts.jsonEncoder = goKitHttp.EncodeJSONResponse
+	}
+	if opts.jsonDecoder == nil {
+		opts.jsonDecoder = DecodeJsonRequest
+	}
+	if opts.xmlEncoder == nil {
+		opts.xmlEncoder = EncodeXMLResponse
+	}
+	if opts.xmlDecoder == nil {
+		opts.xmlDecoder = DecodeXmlRequest
+	}
+	if opts.formDecoder == nil {
+		opts.formDecoder = DecodeFormRequest
+	}
+}
+
+func WithRouter(router *chi.Mux) Option {
+	return func(o *options) {
+		o.router = router
+	}
+}
+
+func WithAddress(address string) Option {
+	return func(o *options) {
+		o.address = address
+	}
+}
+
+func WithErrorEncoder(errorEncoder goKitHttp.ErrorEncoder) Option {
+	return func(o *options) {
+		o.errorEncoder = errorEncoder
+	}
+}
+
+func WithJsonEncoder(jsonEncoder EncoderFunc) Option {
+	return func(o *options) {
+		o.jsonEncoder = jsonEncoder
+	}
+}
+
+func WithJsonDecoder(jsonDecoder DecoderFunc) Option {
+	return func(o *options) {
+		o.jsonDecoder = jsonDecoder
+	}
+}
+
+func WithXmlEncoder(xmlEncoder EncoderFunc) Option {
+	return func(o *options) {
+		o.xmlEncoder = xmlEncoder
+	}
+}
+
+func WithXmlDecoder(xmlDecoder DecoderFunc) Option {
+	return func(o *options) {
+		o.xmlDecoder = xmlDecoder
+	}
+}
+
+func WithFormDecoder(formDecoder DecoderFunc) Option {
+	return func(o *options) {
+		o.formDecoder = formDecoder
+	}
+}
+
+func WithServerOptions(opts ...goKitHttp.ServerOption) Option {
+	return func(o *options) {
+		o.serverOptions = append(o.serverOptions, opts...)
+	}
+}
+
+func WithNotFoundHandler(notFoundHandler goHttp.HandlerFunc) Option {
+	return func(o *options) {
+		o.notFoundHandler = notFoundHandler
+	}
+}
+
+func EncodeXMLResponse(_ context.Context, w goHttp.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	if headerer, ok := response.(goKitHttp.Headerer); ok {
+		for k, values := range headerer.Headers() {
+			for _, v := range values {
+				w.Header().Add(k, v)
+			}
+		}
+	}
+	code := goHttp.StatusOK
+	if sc, ok := response.(goKitHttp.StatusCoder); ok {
+		code = sc.StatusCode()
+	}
+	w.WriteHeader(code)
+	if code == goHttp.StatusNoContent {
+		return nil
+	}
+	return xml.NewEncoder(w).Encode(response)
+}
+
+func DecodeJsonRequest(r *goHttp.Request, strc interface{}) error {
+	if r.Body == goHttp.NoBody {
+		return nil
+	}
+	return json.NewDecoder(r.Body).Decode(strc)
+}
+
+func DecodeXmlRequest(r *goHttp.Request, strc interface{}) error {
+	if r.Body == goHttp.NoBody {
+		return nil
+	}
+	return xml.NewDecoder(r.Body).Decode(strc)
+}
+
+func DecodeFormRequest(r *goHttp.Request, strc interface{}) error {
+	var decoder = schema.NewDecoder()
+	err := r.ParseForm()
+	if err != nil {
+		return err
+	}
+	return decoder.Decode(strc, r.PostForm)
+}

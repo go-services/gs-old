@@ -1,0 +1,25 @@
+{{- /*gotype: []gs/parser.Service*/ -}}
+import {App, FunctionProps, StackContext, Api, ApiProps} from "sst/constructs";
+export function addGenStack(app:App, defaultFuncProps?: FunctionProps, props?:ApiProps){
+    function GenStack({ stack }: StackContext) {
+        const api  = new Api(stack, "GenApi", {
+            ...props,
+            routes: {
+                {{ range $service := . }}
+                "ANY {{ $service.BaseRoute}}/{proxy+}": {
+                    function:{
+                        ...defaultFuncProps,
+                        runtime: "go",
+                        handler : "{{.Config.CmdPath}}/{{.Name}}/lambda.go",
+                    }
+                },
+                {{ end }}
+            },
+        });
+
+        stack.addOutputs({
+            ApiEndpoint: api.url,
+        });
+    }
+    app.stack(GenStack)
+}
